@@ -19,6 +19,7 @@ final class TypingService {
 
     private struct FocusSnapshot {
         let pid: pid_t
+        let window: AXUIElement?
         let element: AXUIElement?
     }
 
@@ -68,7 +69,10 @@ final class TypingService {
             Self.storeFocusSnapshot(nil)
             return nil
         }
-        Self.storeFocusSnapshot(FocusSnapshot(pid: pid, element: element))
+        let appElement = AXUIElementCreateApplication(pid)
+        let window = Self.copyAXElementAttribute(from: appElement, attribute: kAXFocusedWindowAttribute as CFString)
+            ?? Self.copyAXElementAttribute(from: appElement, attribute: kAXMainWindowAttribute as CFString)
+        Self.storeFocusSnapshot(FocusSnapshot(pid: pid, window: window, element: element))
         return pid
     }
 
@@ -76,15 +80,32 @@ final class TypingService {
     static func restoreCapturedFocus(in pid: pid_t) -> Bool {
         guard AXIsProcessTrusted() else { return false }
         guard let snapshot = Self.loadFocusSnapshot(),
-              snapshot.pid == pid,
-              let element = snapshot.element else { return false }
+              snapshot.pid == pid else { return false }
 
-        let result = AXUIElementSetAttributeValue(
-            element,
-            kAXFocusedAttribute as CFString,
-            kCFBooleanTrue
-        )
-        return result == .success
+        let appElement = AXUIElementCreateApplication(pid)
+
+        if let window = snapshot.window {
+            _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+            _ = AXUIElementSetAttributeValue(appElement, kAXMainWindowAttribute as CFString, window)
+            _ = AXUIElementSetAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, window)
+            usleep(40_000)
+        }
+
+        guard let element = snapshot.element else { return false }
+
+        for _ in 0..<3 {
+            let result = AXUIElementSetAttributeValue(
+                element,
+                kAXFocusedAttribute as CFString,
+                kCFBooleanTrue
+            )
+            if result == .success, Self.isCurrentlyFocusedElement(element, expectedPID: pid) {
+                return true
+            }
+            usleep(50_000)
+        }
+
+        return Self.isCurrentlyFocusedElement(element, expectedPID: pid)
     }
 
     /// Best-effort: activates the app with the given PID, unless it's Fluid itself.
@@ -263,6 +284,42 @@ final class TypingService {
 
     private static func loadFocusSnapshot() -> FocusSnapshot? {
         Self.focusSnapshotQueue.sync { Self.focusSnapshot }
+    }
+
+    private static func copyAXElementAttribute(from element: AXUIElement, attribute: CFString) -> AXUIElement? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(element, attribute, &value)
+        guard result == .success, let value else { return nil }
+        guard CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        return unsafeBitCast(value, to: AXUIElement.self)
+    }
+
+    private static func isCurrentlyFocusedElement(_ expectedElement: AXUIElement, expectedPID: pid_t) -> Bool {
+        let systemWideElement = AXUIElementCreateSystemWide()
+        var focusedElementRef: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            systemWideElement,
+            kAXFocusedUIElementAttribute as CFString,
+            &focusedElementRef
+        )
+        guard result == .success, let focusedElementRef else { return false }
+        guard CFGetTypeID(focusedElementRef) == AXUIElementGetTypeID() else { return false }
+
+        let currentElement = unsafeBitCast(focusedElementRef, to: AXUIElement.self)
+        if CFEqual(currentElement, expectedElement) { return true }
+
+        var currentPID: pid_t = 0
+        AXUIElementGetPid(currentElement, &currentPID)
+        guard currentPID == expectedPID else { return false }
+
+        var currentRoleRef: CFTypeRef?
+        let roleResult = AXUIElementCopyAttributeValue(
+            currentElement,
+            kAXRoleAttribute as CFString,
+            &currentRoleRef
+        )
+        guard roleResult == .success, let currentRole = currentRoleRef as? String else { return false }
+        return ["AXTextField", "AXTextArea", "AXSearchField", "AXComboBox", "AXWebArea", "AXGroup"].contains(currentRole)
     }
 
     private func capturePasteboardSnapshot(_ pasteboard: NSPasteboard) -> PasteboardSnapshot {
