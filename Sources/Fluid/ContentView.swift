@@ -953,6 +953,7 @@ struct ContentView: View {
                 self.completeOnboardingIfPossible()
             },
             openAccessibilitySettings: self.openAccessibilitySettings,
+            restartApp: self.restartApp,
             menuBarManager: self.menuBarManager,
             theme: self.theme
         )
@@ -969,7 +970,8 @@ struct ContentView: View {
             accessibilityEnabled: self.accessibilityEnabled,
             stopAndProcessTranscription: { await self.stopAndProcessTranscription() },
             startRecording: self.startRecording,
-            openAccessibilitySettings: self.openAccessibilitySettings
+            openAccessibilitySettings: self.openAccessibilitySettings,
+            restartApp: self.restartApp
         )
     }
 

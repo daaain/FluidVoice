@@ -2649,6 +2649,30 @@ extension SettingsStore {
     }
 }
 
+extension SettingsStore.SpeechModel {
+    var supportedLanguageCodes: String? {
+        switch self {
+        case .parakeetTDT:
+            return "BG, HR, CS, DA, NL, EN, ET, FI, FR, DE, EL, HU, IT, LV, LT, MT, PL, PT, RO, SK, SL, ES, SV, RU, UK"
+        case .appleSpeechAnalyzer:
+            return "EN, ES, FR, DE, IT, JA, KO, PT, ZH"
+        default:
+            return nil
+        }
+    }
+
+    var supportedLanguageNames: String? {
+        switch self {
+        case .parakeetTDT:
+            return """
+            Bulgarian, Croatian, Czech, Danish, Dutch, English, Estonian, Finnish, French, German, Greek, Hungarian, Italian, Latvian, Lithuanian, Maltese, Polish, Portuguese, Romanian, Slovak, Slovenian, Spanish, Swedish, Russian, and Ukrainian
+            """
+        default:
+            return nil
+        }
+    }
+}
+
 extension SettingsStore {
     // MARK: - Unified Speech Model Selection
 
