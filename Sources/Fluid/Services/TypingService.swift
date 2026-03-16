@@ -314,9 +314,15 @@ final class TypingService {
 
         if let preferredTargetPID, preferredTargetPID > 0 {
             self.log("[TypingService] Menu paste failed, trying clipboard-to-PID fallback")
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier != preferredTargetPID {
+                _ = Self.activateApp(pid: preferredTargetPID)
+                usleep(80_000)
+            }
+
             if self.performVerifiedPasteAttempt(
                 methodName: "Clipboard-to-PID",
-                action: { self.insertTextViaClipboardToPid(text, targetPID: preferredTargetPID) }
+                expectedPID: preferredTargetPID,
+                action: { self.insertTextViaClipboardToPid(text, targetPID: preferredTargetPID, activateTargetFirst: false) }
             ) {
                 return true
             }
@@ -468,7 +474,7 @@ final class TypingService {
 
     /// Clipboard-paste insertion targeted at a specific PID.
     /// Uses postToPid for Cmd+V while preserving the full previous pasteboard payload.
-    private func insertTextViaClipboardToPid(_ text: String, targetPID: pid_t) -> Bool {
+    private func insertTextViaClipboardToPid(_ text: String, targetPID: pid_t, activateTargetFirst: Bool = true) -> Bool {
         self.log("[TypingService] Starting clipboard-to-PID insertion to PID \(targetPID)")
 
         guard targetPID > 0 else {
@@ -476,7 +482,7 @@ final class TypingService {
             return false
         }
 
-        if NSWorkspace.shared.frontmostApplication?.processIdentifier != targetPID {
+        if activateTargetFirst, NSWorkspace.shared.frontmostApplication?.processIdentifier != targetPID {
             _ = Self.activateApp(pid: targetPID)
             usleep(80_000)
         }
@@ -817,12 +823,12 @@ final class TypingService {
         )
     }
 
-    private func focusedTextChanged(from snapshot: FocusedTextSnapshot) -> Bool {
+    private func focusedTextChanged(from snapshot: FocusedTextSnapshot, expectedPID: pid_t) -> Bool {
         for _ in 0..<4 {
             usleep(40_000)
 
             guard let current = self.captureFocusedTextSnapshot(),
-                  current.pid == snapshot.pid
+                  current.pid == expectedPID
             else {
                 continue
             }
@@ -842,7 +848,11 @@ final class TypingService {
         return false
     }
 
-    private func performVerifiedPasteAttempt(methodName: String, action: () -> Bool) -> Bool {
+    private func performVerifiedPasteAttempt(
+        methodName: String,
+        expectedPID: pid_t? = nil,
+        action: () -> Bool
+    ) -> Bool {
         let snapshot = self.captureFocusedTextSnapshot()
 
         guard action() else {
@@ -855,7 +865,8 @@ final class TypingService {
             return false
         }
 
-        if self.focusedTextChanged(from: snapshot) {
+        let expectedPID = expectedPID ?? snapshot.pid
+        if self.focusedTextChanged(from: snapshot, expectedPID: expectedPID) {
             self.log("[TypingService] SUCCESS: \(methodName) insertion verified")
             return true
         }
