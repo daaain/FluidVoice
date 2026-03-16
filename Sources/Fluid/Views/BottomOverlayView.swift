@@ -1188,6 +1188,7 @@ private struct BottomOverlayModeMenuView: View {
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
         .frame(maxWidth: self.maxWidth)
+        .preferredColorScheme(.dark)
         .onHover { hovering in
             self.onHoverChanged(hovering)
         }
@@ -1308,6 +1309,7 @@ private struct BottomOverlayPromptMenuView: View {
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
         .frame(maxWidth: self.maxWidth)
+        .preferredColorScheme(.dark)
         .onHover { hovering in
             self.onHoverChanged(hovering)
         }
@@ -1459,6 +1461,7 @@ private struct BottomOverlayActionsMenuView: View {
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
         .frame(maxWidth: self.maxWidth)
+        .preferredColorScheme(.dark)
         .onHover { hovering in
             self.onHoverChanged(hovering)
         }
