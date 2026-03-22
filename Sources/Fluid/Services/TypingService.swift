@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import Foundation
 
 final class TypingService {
@@ -36,6 +37,73 @@ final class TypingService {
 
     private var textInsertionMode: SettingsStore.TextInsertionMode {
         SettingsStore.shared.textInsertionMode
+    }
+
+    // MARK: - Layout-aware key code lookup
+
+    /// Returns the virtual key code that produces `character` under the current keyboard layout.
+    /// Uses the TIS (Text Input Services) API which must run on the main thread, so the lookup
+    /// is dispatched there when called from a background thread. Falls back to `qwertyFallback`
+    /// if the layout data is unavailable.
+    private static func virtualKeyCode(for character: Character, qwertyFallback: CGKeyCode) -> CGKeyCode {
+        if Thread.isMainThread {
+            return tisLookup(for: character, qwertyFallback: qwertyFallback)
+        }
+        var result = qwertyFallback
+        DispatchQueue.main.sync {
+            result = tisLookup(for: character, qwertyFallback: qwertyFallback)
+        }
+        return result
+    }
+
+    /// Performs the actual TIS + UCKeyTranslate scan. Must be called on the main thread.
+    private static func tisLookup(for character: Character, qwertyFallback: CGKeyCode) -> CGKeyCode {
+        guard let targetScalar = character.unicodeScalars.first else { return qwertyFallback }
+
+        guard let sourceRef = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+              let rawPtr = TISGetInputSourceProperty(sourceRef, kTISPropertyUnicodeKeyLayoutData)
+        else {
+            return qwertyFallback
+        }
+        let layoutData = Unmanaged<CFData>.fromOpaque(rawPtr).takeUnretainedValue() as Data
+
+        return layoutData.withUnsafeBytes { buffer -> CGKeyCode in
+            guard let layoutPtr = buffer.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else {
+                return qwertyFallback
+            }
+            var deadKeyState: UInt32 = 0
+            var chars = [UniChar](repeating: 0, count: 4)
+            var length = 0
+            let kbType = UInt32(LMGetKbdType())
+
+            for keyCode: UInt16 in 0..<128 {
+                deadKeyState = 0
+                length = 0
+                let status = UCKeyTranslate(
+                    layoutPtr,
+                    keyCode,
+                    UInt16(kUCKeyActionDisplay),
+                    0,
+                    kbType,
+                    UInt32(kUCKeyTranslateNoDeadKeysMask),
+                    &deadKeyState,
+                    chars.count,
+                    &length,
+                    &chars
+                )
+                guard status == noErr, length > 0 else { continue }
+                if Unicode.Scalar(chars[0]) == targetScalar {
+                    return CGKeyCode(keyCode)
+                }
+            }
+            return qwertyFallback
+        }
+    }
+
+    /// The virtual key code for "v" in the current keyboard layout (used for Cmd+V paste).
+    /// Re-evaluated on every call so runtime keyboard layout switches are picked up immediately.
+    private static var pasteVirtualKeyCode: CGKeyCode {
+        virtualKeyCode(for: "v", qwertyFallback: 9)
     }
 
     // MARK: - Focus helpers (shared)
@@ -472,8 +540,9 @@ final class TypingService {
         }
 
         return self.withTemporaryPasteboardString(text, restoreDelayMicros: 180_000) {
-            guard let cmdVDown = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: true),
-                  let cmdVUp = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: false)
+            let vKey = Self.pasteVirtualKeyCode
+            guard let cmdVDown = CGEvent(keyboardEventSource: nil, virtualKey: vKey, keyDown: true),
+                  let cmdVUp = CGEvent(keyboardEventSource: nil, virtualKey: vKey, keyDown: false)
             else {
                 self.log("[TypingService] ERROR: Failed to create Cmd+V events for PID insertion")
                 return false
@@ -557,8 +626,9 @@ final class TypingService {
     private func insertTextViaClipboard(_ text: String) -> Bool {
         self.log("[TypingService] Starting clipboard-based insertion")
         return self.withTemporaryPasteboardString(text, restoreDelayMicros: 120_000) {
-            guard let cmdVDown = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: true), // 9 = 'V'
-                  let cmdVUp = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: false)
+            let vKey = Self.pasteVirtualKeyCode
+            guard let cmdVDown = CGEvent(keyboardEventSource: nil, virtualKey: vKey, keyDown: true),
+                  let cmdVUp = CGEvent(keyboardEventSource: nil, virtualKey: vKey, keyDown: false)
             else {
                 self.log("[TypingService] ERROR: Failed to create Cmd+V events")
                 return false
