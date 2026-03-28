@@ -297,6 +297,26 @@ extension VoiceEngineSettingsView {
                         .controlSize(.small)
                     }
 
+                    if model.externalCoreMLSpec?.sourceURL != nil {
+                        HStack(spacing: 10) {
+                            Button {
+                                self.viewModel.openExternalModelSource(for: model)
+                            } label: {
+                                Label("Open Hugging Face", systemImage: "arrow.up.right.square")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(self.theme.palette.accent)
+
+                            Text("Download the full model folder there, then import it here.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+
+                            Spacer()
+                        }
+                    }
+
                     if self.viewModel.externalArtifactsDirectoryDisplay(for: model) != nil {
                         HStack {
                             Button("Clear Folder") {
@@ -499,23 +519,50 @@ extension VoiceEngineSettingsView {
                 }
             } else {
                 ZStack(alignment: .trailing) {
-                    Text(model.requiresExternalArtifacts ? "Not imported" : "Not downloaded")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .opacity(isSelected ? 0 : 1)
+                    if model.requiresExternalArtifacts {
+                        HStack(spacing: 8) {
+                            if let _ = model.externalCoreMLSpec?.sourceURL {
+                                Button {
+                                    self.viewModel.openExternalModelSource(for: model)
+                                } label: {
+                                    Image(systemName: "arrow.up.right.square")
+                                        .font(.system(size: 14))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                                .disabled(self.viewModel.asr.isRunning || self.viewModel.downloadingModel != nil)
+                            }
 
-                    Button(model.requiresExternalArtifacts ? "Import Folder" : "Download") {
-                        self.viewModel.previewSpeechModel = model
-                        self.viewModel.downloadSpeechModel(model)
+                            Button("Import Folder") {
+                                self.viewModel.previewSpeechModel = model
+                                self.viewModel.downloadSpeechModel(model)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .tint(.blue)
+                            .disabled(self.viewModel.asr.isRunning || self.viewModel.downloadingModel != nil)
+                        }
+                        .offset(x: isSelected ? 0 : 16)
+                        .opacity(isSelected ? 1 : 0)
+                    } else {
+                        Text("Not downloaded")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .opacity(isSelected ? 0 : 1)
+
+                        Button("Download") {
+                            self.viewModel.previewSpeechModel = model
+                            self.viewModel.downloadSpeechModel(model)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.blue)
+                        .disabled(self.viewModel.asr.isRunning || self.viewModel.downloadingModel != nil)
+                        .offset(x: isSelected ? 0 : 16)
+                        .opacity(isSelected ? 1 : 0)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .tint(.blue)
-                    .disabled(self.viewModel.asr.isRunning || self.viewModel.downloadingModel != nil)
-                    .offset(x: isSelected ? 0 : 16)
-                    .opacity(isSelected ? 1 : 0)
                 }
-                .frame(width: 120, alignment: .trailing)
+                .frame(width: model.requiresExternalArtifacts ? 168 : 120, alignment: .trailing)
             }
         }
         .padding(.horizontal, 12)
@@ -588,16 +635,32 @@ extension VoiceEngineSettingsView {
                 }
                 .buttonStyle(.plain)
             } else {
-                Button(action: { Task { await self.viewModel.downloadModels() } }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.down.circle.fill")
-                        Text(self.settings.selectedSpeechModel.requiresExternalArtifacts ? "Import" : "Download")
+                HStack(spacing: 8) {
+                    if self.settings.selectedSpeechModel.requiresExternalArtifacts,
+                       self.settings.selectedSpeechModel.externalCoreMLSpec?.sourceURL != nil
+                    {
+                        Button(action: { self.viewModel.openExternalModelSource(for: self.settings.selectedSpeechModel) }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.up.right.square")
+                                Text("Hugging Face")
+                            }
+                            .font(.caption)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(self.theme.palette.accent)
                     }
-                    .font(.caption)
+
+                    Button(action: { Task { await self.viewModel.downloadModels() } }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.down.circle.fill")
+                            Text(self.settings.selectedSpeechModel.requiresExternalArtifacts ? "Import" : "Download")
+                        }
+                        .font(.caption)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.blue)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .tint(.blue)
             }
         }
         .padding(.horizontal, 12)

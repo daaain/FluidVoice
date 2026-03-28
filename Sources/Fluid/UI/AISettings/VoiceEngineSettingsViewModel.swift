@@ -260,6 +260,11 @@ final class VoiceEngineSettingsViewModel: ObservableObject {
         }
     }
 
+    func openExternalModelSource(for model: SettingsStore.SpeechModel) {
+        guard let url = model.externalCoreMLSpec?.sourceURL else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     @discardableResult
     private func ensureExternalArtifactsConfigured(
         for model: SettingsStore.SpeechModel,
