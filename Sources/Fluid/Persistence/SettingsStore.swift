@@ -2388,7 +2388,7 @@ final class SettingsStore: ObservableObject {
             case .parakeetTDT: return "~500 MB"
             case .parakeetTDTv2: return "~500 MB"
             case .qwen3Asr: return "~2.0 GB"
-            case .cohereTranscribeSixBit: return "~1.4 GB (manual)"
+            case .cohereTranscribeSixBit: return "~1.4 GB"
             case .appleSpeech: return "Built-in (Zero Download)"
             case .appleSpeechAnalyzer: return "Built-in"
             case .whisperTiny: return "~75 MB"
@@ -2522,7 +2522,7 @@ final class SettingsStore: ObservableObject {
             case .qwen3Asr:
                 return "Qwen3 multilingual ASR via FluidAudio. Higher quality, heavier memory footprint."
             case .cohereTranscribeSixBit:
-                return "External CoreML pipeline with strong accuracy. Load it from a local artifacts folder."
+                return "High-accuracy multilingual transcription. Supports English, French, German, Italian, Spanish, Portuguese, Greek, Dutch, Polish, Mandarin, Japanese, Korean, Vietnamese, and Arabic."
             case .appleSpeech:
                 return "Built-in macOS speech recognition. No download required."
             case .appleSpeechAnalyzer:
@@ -2573,8 +2573,6 @@ final class SettingsStore: ObservableObject {
             switch self {
             case .qwen3Asr:
                 return "⚠️ Requires 8GB+ RAM. Best on newer Apple Silicon Macs."
-            case .cohereTranscribeSixBit:
-                return "⚠️ Requires local CoreML artifacts and 8GB+ RAM. Best on newer Apple Silicon Macs."
             case .whisperLarge:
                 return "⚠️ Requires 10GB+ RAM. May crash on systems with limited memory."
             case .whisperLargeTurbo:
@@ -2628,7 +2626,7 @@ final class SettingsStore: ObservableObject {
             case .parakeetTDT: return 1.0
             case .parakeetTDTv2: return 1.0
             case .qwen3Asr: return 0.45
-            case .cohereTranscribeSixBit: return 0.50
+            case .cohereTranscribeSixBit: return 0.80
             case .appleSpeech: return 0.60
             case .appleSpeechAnalyzer: return 0.85
             case .whisperTiny: return 0.90
@@ -2643,10 +2641,10 @@ final class SettingsStore: ObservableObject {
         /// Exact accuracy percentage (0.0 - 1.0) for the liquid bars
         var accuracyPercent: Double {
             switch self {
-            case .parakeetTDT: return 0.95
-            case .parakeetTDTv2: return 0.98
+            case .parakeetTDT: return 0.92
+            case .parakeetTDTv2: return 0.96
             case .qwen3Asr: return 0.90
-            case .cohereTranscribeSixBit: return 0.96
+            case .cohereTranscribeSixBit: return 0.97
             case .appleSpeech: return 0.60
             case .appleSpeechAnalyzer: return 0.80
             case .whisperTiny: return 0.40
