@@ -2663,8 +2663,8 @@ final class SettingsStore: ObservableObject {
             switch self {
             case .parakeetTDT: return "FluidVoice Pick"
             case .parakeetTDTv2: return "FluidVoice Pick"
+            case .cohereTranscribeSixBit: return "FluidVoice Pick"
             case .qwen3Asr: return "Beta"
-            case .cohereTranscribeSixBit: return "New"
             case .appleSpeechAnalyzer: return "New"
             default: return nil
             }
