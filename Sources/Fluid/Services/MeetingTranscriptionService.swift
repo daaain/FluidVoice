@@ -2,6 +2,7 @@ import AVFoundation
 import Combine
 import CoreMedia
 import Foundation
+import UniformTypeIdentifiers
 
 /// Result of a transcription operation
 struct TranscriptionResult: Identifiable, Sendable, Codable {
@@ -66,6 +67,24 @@ final class MeetingTranscriptionService: ObservableObject {
     @Published var currentStatus: String = ""
     @Published var error: String?
     @Published var result: TranscriptionResult?
+
+    // MARK: - Supported Formats
+
+    /// File extensions the OS can actually decode, queried dynamically from AVFoundation.
+    static let supportedFileExtensions: Set<String> = {
+        let avTypes = AVURLAsset.audiovisualTypes()
+        let extensions = avTypes.compactMap { UTType($0.rawValue)?.preferredFilenameExtension }
+        return Set(extensions)
+    }()
+
+    /// Content types accepted by the file picker — broad categories so the OS filters naturally.
+    static let allowedContentTypes: [UTType] = [.audio, .movie]
+
+    /// User-facing description of supported formats (curated for readability).
+    static let supportedFormatsDescription = "Supported: WAV, MP3, M4A, OGG, MP4, MOV, and more"
+
+    /// Error copy shown when a dropped file is not accepted.
+    static let dropErrorCopy = "Accepted file types: WAV, MP3, M4A, OGG, MP4, MOV, and more."
 
     /// Share the ASR service instance to avoid loading models twice
     private let asrService: ASRService
@@ -159,11 +178,10 @@ final class MeetingTranscriptionService: ObservableObject {
 
             // Check file extension
             let fileExtension = fileURL.pathExtension.lowercased()
-            let supportedFormats = ["wav", "mp3", "m4a", "ogg", "aac", "flac", "aiff", "caf", "mp4", "mov"]
 
-            guard supportedFormats.contains(fileExtension) else {
+            guard Self.supportedFileExtensions.contains(fileExtension) else {
                 throw TranscriptionError
-                    .fileNotSupported("Format .\(fileExtension) not supported. Supported: \(supportedFormats.joined(separator: ", "))")
+                    .fileNotSupported("Format .\(fileExtension) not supported. \(Self.supportedFormatsDescription)")
             }
 
             // Get audio duration for progress display
