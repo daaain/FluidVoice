@@ -9,10 +9,16 @@ enum ExternalCoreMLASRBackend {
 struct ExternalCoreMLManifestIdentity: Decodable {
     let modelID: String
     let sampleRate: Int
+    let maxAudioSamples: Int
+    let maxAudioSeconds: Double
+    let overlapSamples: Int?
 
     private enum CodingKeys: String, CodingKey {
         case modelID = "model_id"
         case sampleRate = "sample_rate"
+        case maxAudioSamples = "max_audio_samples"
+        case maxAudioSeconds = "max_audio_seconds"
+        case overlapSamples = "overlap_samples"
     }
 }
 
@@ -22,6 +28,8 @@ enum ExternalCoreMLArtifactsValidationError: LocalizedError {
     case manifestUnreadable(URL, Error)
     case unexpectedModelID(expected: String, actual: String)
     case unexpectedSampleRate(expected: Int, actual: Int)
+    case unexpectedMaxAudioSamples(expected: Int, actual: Int)
+    case unexpectedMaxAudioSeconds(expected: Double, actual: Double)
 
     var errorDescription: String? {
         switch self {
@@ -35,6 +43,10 @@ enum ExternalCoreMLArtifactsValidationError: LocalizedError {
             return "Unexpected model_id '\(actual)'. Expected '\(expected)'."
         case let .unexpectedSampleRate(expected, actual):
             return "Unexpected sample rate \(actual). Expected \(expected)."
+        case let .unexpectedMaxAudioSamples(expected, actual):
+            return "Unexpected max audio samples \(actual). Expected \(expected)."
+        case let .unexpectedMaxAudioSeconds(expected, actual):
+            return "Unexpected max audio seconds \(actual). Expected \(expected)."
         }
     }
 }
@@ -50,6 +62,8 @@ struct ExternalCoreMLASRModelSpec {
     let cachedDecoderFileName: String
     let expectedModelID: String
     let expectedSampleRate: Int
+    let expectedMaxAudioSamples: Int
+    let expectedMaxAudioSeconds: Double
     let computeConfiguration: CohereTranscribeComputeConfiguration
     let sourceURL: URL?
     let repositoryOwner: String?
@@ -88,24 +102,27 @@ struct ExternalCoreMLASRModelSpec {
         }
     }
 
+    func loadManifest(at directory: URL) throws -> ExternalCoreMLManifestIdentity {
+        let manifestURL = self.url(for: self.manifestFileName, in: directory)
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+            throw ExternalCoreMLArtifactsValidationError.manifestMissing(manifestURL)
+        }
+
+        do {
+            let data = try Data(contentsOf: manifestURL)
+            return try JSONDecoder().decode(ExternalCoreMLManifestIdentity.self, from: data)
+        } catch {
+            throw ExternalCoreMLArtifactsValidationError.manifestUnreadable(manifestURL, error)
+        }
+    }
+
     func validateArtifactsOrThrow(at directory: URL) throws {
         let missingEntries = self.missingEntries(at: directory)
         guard missingEntries.isEmpty else {
             throw ExternalCoreMLArtifactsValidationError.missingEntries(missingEntries)
         }
 
-        let manifestURL = self.url(for: self.manifestFileName, in: directory)
-        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
-            throw ExternalCoreMLArtifactsValidationError.manifestMissing(manifestURL)
-        }
-
-        let manifest: ExternalCoreMLManifestIdentity
-        do {
-            let data = try Data(contentsOf: manifestURL)
-            manifest = try JSONDecoder().decode(ExternalCoreMLManifestIdentity.self, from: data)
-        } catch {
-            throw ExternalCoreMLArtifactsValidationError.manifestUnreadable(manifestURL, error)
-        }
+        let manifest = try self.loadManifest(at: directory)
 
         guard manifest.modelID == self.expectedModelID else {
             throw ExternalCoreMLArtifactsValidationError.unexpectedModelID(
@@ -118,6 +135,20 @@ struct ExternalCoreMLASRModelSpec {
             throw ExternalCoreMLArtifactsValidationError.unexpectedSampleRate(
                 expected: self.expectedSampleRate,
                 actual: manifest.sampleRate
+            )
+        }
+
+        guard manifest.maxAudioSamples == self.expectedMaxAudioSamples else {
+            throw ExternalCoreMLArtifactsValidationError.unexpectedMaxAudioSamples(
+                expected: self.expectedMaxAudioSamples,
+                actual: manifest.maxAudioSamples
+            )
+        }
+
+        guard manifest.maxAudioSeconds == self.expectedMaxAudioSeconds else {
+            throw ExternalCoreMLArtifactsValidationError.unexpectedMaxAudioSeconds(
+                expected: self.expectedMaxAudioSeconds,
+                actual: manifest.maxAudioSeconds
             )
         }
     }
@@ -138,6 +169,8 @@ enum ExternalCoreMLModelRegistry {
                 cachedDecoderFileName: "cohere_decoder_cached.mlpackage",
                 expectedModelID: "CohereLabs/cohere-transcribe-03-2026",
                 expectedSampleRate: 16_000,
+                expectedMaxAudioSamples: 560_000,
+                expectedMaxAudioSeconds: 35.0,
                 computeConfiguration: .aneSmall,
                 sourceURL: URL(string: "https://huggingface.co/BarathwajAnandan/cohere-transcribe-03-2026-CoreML-6bit"),
                 repositoryOwner: "BarathwajAnandan",

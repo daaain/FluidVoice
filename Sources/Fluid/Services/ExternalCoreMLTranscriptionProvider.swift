@@ -14,6 +14,7 @@ final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
 
     private var cohereManager: CohereTranscribeAsrManager?
     private let modelOverride: SettingsStore.SpeechModel?
+    private var loadedManifest: ExternalCoreMLManifestIdentity?
 
     init(modelOverride: SettingsStore.SpeechModel? = nil) {
         self.modelOverride = modelOverride
@@ -51,6 +52,8 @@ final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
 
         progressHandler?(0.85)
 
+        self.loadedManifest = try spec.loadManifest(at: directory)
+
         switch spec.backend {
         case .cohereTranscribe:
             let manager = CohereTranscribeAsrManager()
@@ -62,7 +65,7 @@ final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
                 String(describing: spec.computeConfiguration.decoder),
             ].joined(separator: "/")
             DebugLogger.shared.info(
-                "ExternalCoreML: loading Cohere models [splitCompute=\(computeSummary)]",
+                "ExternalCoreML: loading Cohere models [splitCompute=\(computeSummary), maxAudioSamples=\(self.loadedManifest?.maxAudioSamples ?? spec.expectedMaxAudioSamples)]",
                 source: "ExternalCoreML"
             )
             try await manager.loadModels(from: directory, computeConfiguration: spec.computeConfiguration)
@@ -95,7 +98,7 @@ final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
             throw Self.makeError("External CoreML model is not initialized.")
         }
 
-        let text = try await manager.transcribe(audioSamples: previewSamples)
+        let text = try await manager.transcribe(audioSamples: self.paddedSamplesToModelLimit(previewSamples))
         return ASRTranscriptionResult(text: text, confidence: 1.0)
     }
 
@@ -137,7 +140,7 @@ final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
             "ExternalCoreML: transcribing \(samples.count) samples [audioSeconds=\(String(format: "%.2f", audioSeconds))]",
             source: "ExternalCoreML"
         )
-        let text = try await manager.transcribe(audioSamples: samples)
+        let text = try await self.transcribeByManifestWindow(samples, manager: manager)
         let elapsed = Date().timeIntervalSince(startedAt)
         let rtf = audioSeconds > 0 ? elapsed / audioSeconds : 0
         DebugLogger.shared.info(
@@ -192,6 +195,7 @@ final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
 
         self.isReady = false
         self.cohereManager = nil
+        self.loadedManifest = nil
         DebugLogger.shared.info(
             "ExternalCoreML: provider reset after cache clear",
             source: "ExternalCoreML"
@@ -271,13 +275,62 @@ final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
     }
 
     private func previewSamples(for samples: [Float]) -> [Float] {
-        let model = self.modelOverride ?? SettingsStore.shared.selectedSpeechModel
-        guard model == .cohereTranscribeSixBit else { return samples }
-
-        let sampleRate = model.externalCoreMLSpec?.expectedSampleRate ?? 16_000
+        let sampleRate = self.loadedManifest?.sampleRate
+            ?? (self.modelOverride ?? SettingsStore.shared.selectedSpeechModel).externalCoreMLSpec?.expectedSampleRate
+            ?? 16_000
         let maxPreviewSamples = Int(Double(sampleRate) * self.streamingPreviewMaxSeconds)
         guard samples.count > maxPreviewSamples else { return samples }
         return Array(samples.suffix(maxPreviewSamples))
+    }
+
+    private func transcribeByManifestWindow(
+        _ samples: [Float],
+        manager: CohereTranscribeAsrManager
+    ) async throws -> String {
+        let maxAudioSamples = self.loadedManifest?.maxAudioSamples ?? 0
+        guard maxAudioSamples > 0 else {
+            return try await manager.transcribe(audioSamples: samples)
+        }
+
+        if samples.count <= maxAudioSamples {
+            return try await manager.transcribe(audioSamples: self.paddedSamplesToModelLimit(samples))
+        }
+
+        let overlapSamples = min(self.loadedManifest?.overlapSamples ?? 0, maxAudioSamples / 2)
+        let step = max(maxAudioSamples - overlapSamples, 1)
+        var chunkTexts: [String] = []
+        var startIndex = 0
+
+        while startIndex < samples.count {
+            let endIndex = min(startIndex + maxAudioSamples, samples.count)
+            let chunk = Array(samples[startIndex..<endIndex])
+            let text = try await manager.transcribe(audioSamples: self.paddedSamplesToModelLimit(chunk))
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty == false {
+                chunkTexts.append(trimmed)
+            }
+            if endIndex >= samples.count {
+                break
+            }
+            startIndex += step
+        }
+
+        return chunkTexts.joined(separator: " ")
+    }
+
+    private func paddedSamplesToModelLimit(_ samples: [Float]) -> [Float] {
+        let maxAudioSamples = self.loadedManifest?.maxAudioSamples ?? samples.count
+        guard maxAudioSamples > 0 else { return samples }
+
+        if samples.count == maxAudioSamples {
+            return samples
+        }
+
+        if samples.count > maxAudioSamples {
+            return Array(samples.suffix(maxAudioSamples))
+        }
+
+        return samples + Array(repeating: 0, count: maxAudioSamples - samples.count)
     }
 }
 
