@@ -267,8 +267,8 @@ final class LLMClient {
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // Only add Authorization header for non-local endpoints
-        if !isLocal && !config.apiKey.isEmpty {
+        // Send Authorization whenever a key exists; some localhost endpoints still require auth.
+        if !config.apiKey.isEmpty {
             request.addValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
         }
 
