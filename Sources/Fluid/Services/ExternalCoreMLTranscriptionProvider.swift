@@ -58,6 +58,7 @@ final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
         case .cohereTranscribe:
             let manager = CohereTranscribeAsrManager()
             progressHandler?(0.9)
+            try self.invalidateCompiledCohereCacheIfNeeded(at: directory)
             let computeSummary = [
                 String(describing: spec.computeConfiguration.frontend),
                 String(describing: spec.computeConfiguration.encoder),
@@ -65,11 +66,12 @@ final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
                 String(describing: spec.computeConfiguration.decoder),
             ].joined(separator: "/")
             DebugLogger.shared.info(
-                "ExternalCoreML: loading Cohere models [splitCompute=\(computeSummary), maxAudioSamples=\(self.loadedManifest?.maxAudioSamples ?? spec.expectedMaxAudioSamples)]",
+                "ExternalCoreML: loading Cohere models [splitCompute=\(computeSummary), maxAudioSamples=\(self.loadedManifest?.maxAudioSamples ?? 0)]",
                 source: "ExternalCoreML"
             )
             try await manager.loadModels(from: directory, computeConfiguration: spec.computeConfiguration)
             self.cohereManager = manager
+            self.persistCompiledCohereCacheStamp(at: directory)
         }
 
         self.isReady = true
@@ -272,6 +274,48 @@ final class ExternalCoreMLTranscriptionProvider: TranscriptionProvider {
             code: -1,
             userInfo: [NSLocalizedDescriptionKey: description]
         )
+    }
+
+    private func invalidateCompiledCohereCacheIfNeeded(at directory: URL) throws {
+        guard let manifest = self.loadedManifest else { return }
+
+        let compiledDirectory = CohereTranscribeAsrModels.compiledArtifactsDirectory(for: directory)
+        guard FileManager.default.fileExists(atPath: compiledDirectory.path) else { return }
+
+        let currentStamp = Self.compiledCohereCacheStamp(for: manifest)
+        let stampURL = Self.compiledCohereCacheStampURL(for: directory)
+        let previousStamp = try? String(contentsOf: stampURL, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard previousStamp != currentStamp else { return }
+
+        let reason = previousStamp == nil ? "missing cache stamp" : "manifest changed"
+        DebugLogger.shared.warning(
+            "ExternalCoreML: clearing stale compiled Cohere cache [reason=\(reason)]",
+            source: "ExternalCoreML"
+        )
+        try FileManager.default.removeItem(at: compiledDirectory)
+    }
+
+    private func persistCompiledCohereCacheStamp(at directory: URL) {
+        guard let manifest = self.loadedManifest else { return }
+        let stampURL = Self.compiledCohereCacheStampURL(for: directory)
+        let stamp = Self.compiledCohereCacheStamp(for: manifest)
+        try? stamp.write(to: stampURL, atomically: true, encoding: .utf8)
+    }
+
+    private static func compiledCohereCacheStampURL(for directory: URL) -> URL {
+        directory.appendingPathComponent(".cohere_compiled_cache_stamp", isDirectory: false)
+    }
+
+    private static func compiledCohereCacheStamp(for manifest: ExternalCoreMLManifestIdentity) -> String {
+        [
+            manifest.modelID,
+            String(manifest.sampleRate),
+            String(manifest.maxAudioSamples),
+            String(manifest.maxAudioSeconds),
+            String(manifest.overlapSamples ?? 0),
+        ].joined(separator: "|")
     }
 
     private func previewSamples(for samples: [Float]) -> [Float] {
