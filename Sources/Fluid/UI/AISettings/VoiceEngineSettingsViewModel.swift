@@ -112,22 +112,18 @@ final class VoiceEngineSettingsViewModel: ObservableObject {
 
     func downloadSpeechModel(_ model: SettingsStore.SpeechModel) {
         guard !self.asr.isRunning else { return }
-        guard self.downloadingModel == nil else { return } // Prevent concurrent downloads
+        guard self.downloadingModel == nil else { return }
         self.downloadingModel = model
         self.downloadProgress = 0.0
 
         Task {
-            // Mark this model as downloading
             self.downloadingModel = model
             self.downloadProgress = 0.0
 
             do {
-                // Download the model WITHOUT changing the active selection
-                // Capture the model ID to guard against stale progress callbacks
                 let downloadingModelId = model.id
                 try await self.asr.downloadModel(model, progressHandler: { [weak self] progress in
                     Task { @MainActor in
-                        // Only update progress if we're still downloading this specific model
                         guard let self, self.downloadingModel?.id == downloadingModelId else { return }
                         self.downloadProgress = max(self.downloadProgress, progress)
                     }
@@ -143,7 +139,6 @@ final class VoiceEngineSettingsViewModel: ObservableObject {
                 }
             }
 
-            // Clear downloading state
             self.downloadingModel = nil
             self.downloadProgress = 0.0
         }
@@ -197,6 +192,8 @@ final class VoiceEngineSettingsViewModel: ObservableObject {
             return "Parakeet TDT v2 is an English-only model optimized for accuracy and consistency on Apple Silicon."
         case .qwen3Asr:
             return "Qwen3 ASR is a multilingual FluidAudio model with strong quality, but higher memory usage. Requires macOS 15+."
+        case .gemma4E2B:
+            return "Gemma 4 E2B uses Google's multimodal model with native audio understanding via cloud API. Supports 50+ languages and can remove filler words in a single pass. Requires a Google API key."
         default:
             return "Whisper models support 99 languages and work on any Mac."
         }
