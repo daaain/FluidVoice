@@ -2335,6 +2335,10 @@ final class SettingsStore: ObservableObject {
         case qwen3Asr = "qwen3-asr"
         case cohereTranscribeSixBit = "cohere-transcribe-6bit"
 
+        // MARK: - Google (Cloud/Local API)
+
+        case gemma4 = "gemma-4"
+
         // MARK: - Apple Native
 
         case appleSpeech = "apple-speech"
@@ -2360,6 +2364,7 @@ final class SettingsStore: ObservableObject {
             case .parakeetRealtime: return "Parakeet Flash (Beta)"
             case .qwen3Asr: return "Qwen3 ASR (Beta)"
             case .cohereTranscribeSixBit: return "Cohere Transcribe"
+            case .gemma4: return "Gemma 4 (Audio)"
             case .appleSpeech: return "Apple ASR Legacy"
             case .appleSpeechAnalyzer: return "Apple Speech - macOS 26+"
             case .whisperTiny: return "Whisper Tiny"
@@ -2379,6 +2384,7 @@ final class SettingsStore: ObservableObject {
             case .parakeetRealtime: return "English Only (Live Streaming)"
             case .qwen3Asr: return "30 Languages"
             case .cohereTranscribeSixBit: return "14 Languages (Select Manually)"
+            case .gemma4: return "50+ Languages"
             case .appleSpeech: return "System Languages"
             case .appleSpeechAnalyzer: return "EN, ES, FR, DE, IT, JA, KO, PT, ZH"
             case .whisperTiny, .whisperBase, .whisperSmall, .whisperMedium, .whisperLargeTurbo, .whisperLarge:
@@ -2393,6 +2399,7 @@ final class SettingsStore: ObservableObject {
             case .parakeetRealtime: return "~250 MB"
             case .qwen3Asr: return "~2.0 GB"
             case .cohereTranscribeSixBit: return "~1.4 GB"
+            case .gemma4: return "Cloud/Local API"
             case .appleSpeech: return "Built-in (Zero Download)"
             case .appleSpeechAnalyzer: return "Built-in"
             case .whisperTiny: return "~75 MB"
@@ -2407,13 +2414,14 @@ final class SettingsStore: ObservableObject {
         var requiresAppleSilicon: Bool {
             switch self {
             case .parakeetTDT, .parakeetTDTv2, .parakeetRealtime, .qwen3Asr, .cohereTranscribeSixBit: return true
+            case .gemma4: return false
             default: return false
             }
         }
 
         var isWhisperModel: Bool {
             switch self {
-            case .parakeetTDT, .parakeetTDTv2, .parakeetRealtime, .qwen3Asr, .cohereTranscribeSixBit, .appleSpeech, .appleSpeechAnalyzer: return false
+            case .parakeetTDT, .parakeetTDTv2, .parakeetRealtime, .qwen3Asr, .cohereTranscribeSixBit, .gemma4, .appleSpeech, .appleSpeechAnalyzer: return false
             default: return true
             }
         }
@@ -2506,6 +2514,7 @@ final class SettingsStore: ObservableObject {
             case .parakeetRealtime: return "Flash Dictation"
             case .qwen3Asr: return "Qwen3 - Multilingual"
             case .cohereTranscribeSixBit: return "Cohere - High Accuracy"
+            case .gemma4: return "Gemma 4 - Multimodal Audio"
             case .appleSpeech: return "Apple ASR Legacy"
             case .appleSpeechAnalyzer: return "Apple Speech - macOS 26+"
             case .whisperTiny: return "Fast & Light"
@@ -2533,6 +2542,8 @@ final class SettingsStore: ObservableObject {
                 return "Qwen3 multilingual ASR via FluidAudio. Higher quality, heavier memory footprint."
             case .cohereTranscribeSixBit:
                 return "High-accuracy multilingual transcription. Select the language manually before dictation for best results."
+            case .gemma4:
+                return "Multimodal model with native audio via API. Works with Gemini, llama.cpp, or MLX servers."
             case .appleSpeech:
                 return "Built-in macOS speech recognition. No download required."
             case .appleSpeechAnalyzer:
@@ -2561,6 +2572,8 @@ final class SettingsStore: ObservableObject {
                 return 8.0
             case .cohereTranscribeSixBit:
                 return 8.0
+            case .gemma4:
+                return 1.0
             case .appleSpeech, .appleSpeechAnalyzer:
                 return 2.0 // Built-in, minimal overhead
             case .whisperTiny:
@@ -2602,6 +2615,7 @@ final class SettingsStore: ObservableObject {
             case .parakeetRealtime: return 5
             case .qwen3Asr: return 3
             case .cohereTranscribeSixBit: return 3
+            case .gemma4: return 2
             case .appleSpeech: return 4
             case .appleSpeechAnalyzer: return 4
             case .whisperTiny: return 4
@@ -2621,6 +2635,7 @@ final class SettingsStore: ObservableObject {
             case .parakeetRealtime: return 4
             case .qwen3Asr: return 4
             case .cohereTranscribeSixBit: return 5
+            case .gemma4: return 5
             case .appleSpeech: return 4
             case .appleSpeechAnalyzer: return 4
             case .whisperTiny: return 2
@@ -2640,6 +2655,7 @@ final class SettingsStore: ObservableObject {
             case .parakeetRealtime: return 1.0
             case .qwen3Asr: return 0.45
             case .cohereTranscribeSixBit: return 0.85
+            case .gemma4: return 0.35
             case .appleSpeech: return 0.60
             case .appleSpeechAnalyzer: return 0.85
             case .whisperTiny: return 0.90
@@ -2659,6 +2675,7 @@ final class SettingsStore: ObservableObject {
             case .parakeetRealtime: return 0.75
             case .qwen3Asr: return 0.90
             case .cohereTranscribeSixBit: return 0.98
+            case .gemma4: return 0.92
             case .appleSpeech: return 0.60
             case .appleSpeechAnalyzer: return 0.80
             case .whisperTiny: return 0.40
@@ -2678,6 +2695,7 @@ final class SettingsStore: ObservableObject {
             case .parakeetRealtime: return "Beta"
             case .qwen3Asr: return "Beta"
             case .cohereTranscribeSixBit: return "New"
+            case .gemma4: return "New"
             case .appleSpeechAnalyzer: return "New"
             default: return nil
             }
@@ -2688,6 +2706,8 @@ final class SettingsStore: ObservableObject {
             switch self {
             case .parakeetTDT, .parakeetTDTv2, .parakeetRealtime, .qwen3Asr, .cohereTranscribeSixBit, .appleSpeechAnalyzer:
                 return true
+            case .gemma4:
+                return false
             default:
                 return false
             }
@@ -2712,6 +2732,8 @@ final class SettingsStore: ObservableObject {
                 return 0.2
             case .cohereTranscribeSixBit:
                 return 1.0
+            case .gemma4:
+                return 1.0
             default:
                 return 0.6
             }
@@ -2725,6 +2747,8 @@ final class SettingsStore: ObservableObject {
                 return 0.2
             case .cohereTranscribeSixBit:
                 return 1.5
+            case .gemma4:
+                return 1.5
             default:
                 return 1.0
             }
@@ -2737,6 +2761,7 @@ final class SettingsStore: ObservableObject {
             case openai = "OpenAI"
             case qwen = "Qwen"
             case cohere = "Cohere"
+            case google = "Google"
         }
 
         /// Which provider this model belongs to
@@ -2750,6 +2775,8 @@ final class SettingsStore: ObservableObject {
                 return .qwen
             case .cohereTranscribeSixBit:
                 return .cohere
+            case .gemma4:
+                return .google
             case .whisperTiny, .whisperBase, .whisperSmall, .whisperMedium, .whisperLargeTurbo, .whisperLarge:
                 return .openai
             }
@@ -2790,6 +2817,8 @@ final class SettingsStore: ObservableObject {
                     return false
                 }
                 return spec.validateArtifacts(at: directory)
+            case .gemma4:
+                return SettingsStore.shared.getAPIKey(for: "google") != nil
             default:
                 // Whisper models
                 guard let whisperFile = self.whisperModelFile else { return false }
@@ -2821,6 +2850,8 @@ final class SettingsStore: ObservableObject {
                 return "Qwen"
             case .cohereTranscribeSixBit:
                 return "Cohere"
+            case .gemma4:
+                return "Google"
             case .appleSpeech, .appleSpeechAnalyzer:
                 return "Apple"
             case .whisperTiny, .whisperBase, .whisperSmall, .whisperMedium, .whisperLargeTurbo, .whisperLarge:
@@ -2845,6 +2876,8 @@ final class SettingsStore: ObservableObject {
                 return "#E67E22"
             case .cohereTranscribeSixBit:
                 return "#FA6B3C"
+            case .gemma4:
+                return "#4285F4"
             case .appleSpeech, .appleSpeechAnalyzer:
                 return "#A2AAAD" // Apple Gray
             case .whisperTiny, .whisperBase, .whisperSmall, .whisperMedium, .whisperLargeTurbo, .whisperLarge:

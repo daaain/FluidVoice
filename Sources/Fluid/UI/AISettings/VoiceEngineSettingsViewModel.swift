@@ -70,6 +70,8 @@ final class VoiceEngineSettingsViewModel: ObservableObject {
             models = models.filter { $0.provider == .cohere }
         case .openai:
             models = models.filter { $0.provider == .openai }
+        case .google:
+            models = models.filter { $0.provider == .google }
         }
 
         if self.englishOnlyFilter {
@@ -207,6 +209,8 @@ final class VoiceEngineSettingsViewModel: ObservableObject {
             return "Qwen3 ASR is a multilingual FluidAudio model with strong quality, but higher memory usage. Requires macOS 15+."
         case .cohereTranscribeSixBit:
             return "Cohere Transcribe downloads a CoreML pipeline from Hugging Face and caches it locally. Select the language manually before dictation. Best on Apple Silicon with 8GB+ RAM."
+        case .gemma4:
+            return "Gemma 4 transcribes audio natively via API. Works with Google Gemini (cloud), llama.cpp, or MLX servers. Can remove filler words in a single pass."
         default:
             return "Whisper models support 99 languages and work on any Mac."
         }

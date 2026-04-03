@@ -142,6 +142,7 @@ final class ASRService: ObservableObject {
     private var externalCoreMLProvider: ExternalCoreMLTranscriptionProvider?
     private var whisperProvider: WhisperProvider?
     private var appleSpeechProvider: AppleSpeechProvider?
+    private var gemma4Provider: Gemma4Provider?
     /// Stored as Any? because @available cannot be applied to stored properties
     private var _appleSpeechAnalyzerProvider: Any?
 
@@ -171,6 +172,8 @@ final class ASRService: ObservableObject {
             return self.getParakeetRealtimeProvider()
         case .cohereTranscribeSixBit:
             return self.getExternalCoreMLProvider()
+        case .gemma4:
+            return self.getGemma4Provider()
         case .qwen3Asr:
             DebugLogger.shared.warning(
                 "ASRService: Qwen provider removed; falling back to FluidAudio Parakeet path",
@@ -248,6 +251,14 @@ final class ASRService: ObservableObject {
         return provider
     }
 
+    private func getGemma4Provider() -> Gemma4Provider {
+        if let existing = gemma4Provider { return existing }
+        let provider = Gemma4Provider()
+        self.gemma4Provider = provider
+        DebugLogger.shared.info("ASRService: Created Gemma 4 provider", source: "ASRService")
+        return provider
+    }
+
     /// Returns the user-friendly name of the currently selected speech model
     var activeProviderName: String {
         SettingsStore.shared.selectedSpeechModel.displayName
@@ -279,6 +290,8 @@ final class ASRService: ObservableObject {
             return ParakeetRealtimeProvider()
         case .cohereTranscribeSixBit:
             return ExternalCoreMLTranscriptionProvider(modelOverride: model)
+        case .gemma4:
+            return Gemma4Provider()
         case .qwen3Asr:
             // Qwen support removed; route legacy requests to Parakeet v3.
             return FluidAudioProvider(modelOverride: .parakeetTDT, configureWordBoosting: false)
@@ -358,6 +371,7 @@ final class ASRService: ObservableObject {
         self.externalCoreMLProvider = nil
         self.whisperProvider = nil
         self.appleSpeechProvider = nil
+        self.gemma4Provider = nil
         self._appleSpeechAnalyzerProvider = nil
 
         // CRITICAL FIX: Check if the NEW model's files exist on disk
@@ -2436,6 +2450,7 @@ final class ASRService: ObservableObject {
     /// Removes filler sounds from transcribed text
     static func removeFillerWords(_ text: String) -> String {
         guard SettingsStore.shared.removeFillerWordsEnabled else { return text }
+        if SettingsStore.shared.selectedSpeechModel == .gemma4 { return text }
 
         let fillers = Set(SettingsStore.shared.fillerWords.map { $0.lowercased() })
 
